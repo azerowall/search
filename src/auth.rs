@@ -9,7 +9,7 @@ use actix_web_httpauth::{
     },
 };
 
-use crate::api::AppState;
+use crate::AppState;
 
 #[derive(Debug)]
 pub struct User {

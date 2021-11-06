@@ -1,5 +1,6 @@
 //#![allow(dead_code, unused_imports)]
 
+mod config;
 mod api;
 mod auth;
 mod access_control;
@@ -10,6 +11,11 @@ mod query;
 
 #[cfg(test)]
 mod test;
+
+use crate::config::AppConfig;
+use crate::auth::AuthService;
+use crate::access_control::AccessControlSerivce;
+use crate::index_manager::IndexManager;
 
 pub use crate::error::Error;
 pub type Result<T, E = crate::error::Error> = std::result::Result<T, E>;
@@ -32,58 +38,34 @@ pub type Result<T, E = crate::error::Error> = std::result::Result<T, E>;
     пользователи и права - а нужно ли?
 */
 
+
+pub struct AppState {
+    pub indicies: IndexManager,
+    pub auth: AuthService,
+    pub access_control: AccessControlSerivce,
+}
+
+impl AppState {
+    pub fn from_config(config: &AppConfig) -> crate::Result<Self> {
+        Ok(Self {
+            indicies: IndexManager::load_from(config.search.data_dir.clone())?,
+            auth: AuthService::new_test(),
+            access_control: AccessControlSerivce::new_test(),
+        })
+    }
+}
+
+
 #[actix_web::main]
 async fn main() -> crate::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
 
-    api::run_server().await?;
+    let config = AppConfig::new()?;
+    log::debug!("App config:\n{:#?}", &config);
+
+    let state = AppState::from_config(&config)?;
+
+    api::run_server(state, &config).await?;
     Ok(())
-}
-
-#[cfg(test)]
-mod test1 {
-
-    use tantivy::doc;
-    use tantivy::schema::{Schema, INDEXED, STORED, TEXT};
-
-    #[test]
-    fn test_tantivy() {
-        let mut schema = Schema::builder();
-        let id = schema.add_u64_field("id", INDEXED | STORED);
-        let text = schema.add_text_field("text", TEXT);
-        let schema = schema.build();
-
-        let index = tantivy::Index::builder()
-            .schema(schema)
-            .create_in_dir("/tmp/test_index")
-            .unwrap();
-
-        let mut writer = index.writer(3000000).unwrap();
-        let reader = index.reader().unwrap();
-
-        for i in 0u64..10 {
-            writer.add_document(doc!(
-                id => i,
-                text => format!("test test"),
-            ));
-        }
-        writer.commit().unwrap();
-
-        writer.delete_term(tantivy::Term::from_field_u64(id, 3));
-        writer.commit().unwrap();
-
-        //writer.wait_merging_threads().unwrap();
-
-        reader.reload().unwrap();
-
-        let searcher = reader.searcher();
-        let collector = tantivy::collector::TopDocs::with_limit(100);
-        let query_parser = tantivy::query::QueryParser::for_index(&index, vec![text]);
-        let query = query_parser.parse_query("test").unwrap();
-        let docs = searcher.search(&query, &collector).unwrap();
-        assert_eq!(docs.len(), 9);
-
-        //writer.commit().unwrap();
-    }
 }

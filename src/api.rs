@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use actix_web::{
-    error, web, App, HttpRequest, HttpResponse, HttpServer, Responder, Result as ActixResult,
+    error, web, App, HttpRequest, HttpServer, Result as ActixResult,
 };
 use actix_web::middleware::Logger;
 
@@ -9,32 +9,15 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 
 use actix_cors::Cors;
 
-use crate::auth::{self, AuthService, User};
-use crate::access_control::{AccessControlSerivce, Permission};
+use crate::config::AppConfig;
+use crate::AppState;
+use crate::auth::{self, User};
+use crate::access_control::{Permission};
 use crate::index::*;
-use crate::index_manager::IndexManager;
 
 
-
-pub struct AppState {
-    pub indicies: IndexManager,
-    pub auth: AuthService,
-    pub access_control: AccessControlSerivce,
-}
-
-impl AppState {
-    pub async fn new() -> crate::Result<Self> {
-        Ok(Self {
-            indicies: IndexManager::load_from("/tmp/test".into()).await?,
-            auth: AuthService::new_test(),
-            access_control: AccessControlSerivce::new_test(),
-        })
-    }
-}
-
-
-pub async fn run_server() -> crate::Result<()> {
-    let state = web::Data::new(AppState::new().await?);
+pub async fn run_server(state: AppState, config: &AppConfig) -> crate::Result<()> {
+    let state = web::Data::new(state);
 
     HttpServer::new(move || {
         App::new()
@@ -44,7 +27,7 @@ pub async fn run_server() -> crate::Result<()> {
             .app_data(state.clone())
             .configure(config_routes)
     })
-        .bind("127.0.0.1:8080")?
+        .bind(config.api.listen)?
         .run()
         .await
         .map_err(From::from)

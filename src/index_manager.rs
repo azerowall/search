@@ -13,7 +13,7 @@ pub struct IndexManager {
 }
 
 impl IndexManager {
-    pub async fn load_from(root: PathBuf) -> crate::Result<Self> {
+    pub fn load_from(root: PathBuf) -> crate::Result<Self> {
         fs::create_dir_all(&root)?;
         Ok(Self {
             root,
@@ -86,7 +86,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_create() -> crate::Result<()> {
-        let indicies = IndexManager::load_from("/tmp/test".into()).await?;
+        let indicies = IndexManager::load_from("/tmp/test".into())?;
         let index_name = String::from("test");
         let schema = test::make_test_schema();
 
