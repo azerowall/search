@@ -1,4 +1,4 @@
-use tantivy::schema::{Schema, STORED, INDEXED, TEXT};
+use tantivy::schema::{Schema, INDEXED, STORED, TEXT};
 
 pub fn make_test_schema() -> Schema {
     let mut schema = Schema::builder();
