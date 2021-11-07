@@ -1,12 +1,11 @@
-use std::convert::TryFrom;
-use std::path::PathBuf;
 use std::sync::RwLock;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use actix_web::web::block;
 use serde::Deserialize;
-
 use anyhow::{anyhow, Context};
+
+use crate::config;
 
 pub struct AddDocRequest {
     pub doc: String,
@@ -33,7 +32,6 @@ pub struct IndexConfig {
 }
 
 pub struct LocalIndex {
-    name: String,
     schema: tantivy::schema::Schema,
     index: tantivy::Index,
     reader: tantivy::IndexReader,
@@ -41,12 +39,15 @@ pub struct LocalIndex {
 }
 
 impl LocalIndex {
-    pub fn from_index(name: String, index: tantivy::Index) -> crate::Result<LocalIndex> {
+    pub fn from_index(_name: String, index: tantivy::Index, config: &config::Search) -> crate::Result<LocalIndex> {
         let schema = index.schema();
         let reader = index.reader()?;
-        let writer = index.writer(50_000_000)?;
+        let writer = if let Some(num_threads) = config.indexer_num_threads {
+            index.writer_with_num_threads(num_threads, config.indexer_heap_size)
+        } else {
+            index.writer(config.indexer_heap_size)
+        }?;
         Ok(LocalIndex {
-            name,
             schema,
             index,
             reader,
@@ -140,68 +141,5 @@ impl LocalIndex {
         })
         .await
         .map_err(From::from)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use std::thread::sleep;
-    use std::time::Duration;
-
-    use super::*;
-    use crate::test;
-    use actix_web::rt::time::delay_for;
-    use tantivy::Index;
-
-    #[actix_rt::test]
-    async fn test_add_delete_search() -> crate::Result<()> {
-        std::env::set_var("RUST_LOG", "debug");
-        pretty_env_logger::init();
-
-        let index = Index::builder()
-            .schema(test::make_test_schema())
-            .create_in_ram()?;
-        let index = Arc::new(LocalIndex::from_index("test".into(), index)?);
-
-        for i in 0..5 {
-            index
-                .add_document(AddDocRequest {
-                    doc: format!(r#"{{ "id": {}, "text": "test text" }}"#, i),
-                    commit: i == 4,
-                })
-                .await?;
-        }
-
-        //sleep(Duration::from_secs(3));
-
-        let docs = index
-            .search(SearchRequest {
-                query: "text:test".into(),
-                offset: 0,
-                limit: 5,
-            })
-            .await?;
-        log::debug!("{} docs", docs.len());
-        assert_eq!(docs.len(), 5);
-
-        index
-            .delete_by_term(DeleteByTermRequest {
-                field: "id".into(),
-                term: "3".into(),
-                commit: true,
-            })
-            .await?;
-
-        let docs = index
-            .search(SearchRequest {
-                query: "text:test".into(),
-                offset: 0,
-                limit: 5,
-            })
-            .await?;
-        log::debug!("{} docs", docs.len());
-        assert_eq!(docs.len(), 4);
-
-        Ok(())
     }
 }

@@ -11,10 +11,16 @@ pub struct Api {
     pub listen: SocketAddr,
 }
 
+// fn default_num_threads() -> usize {
+//     std::cmp::min(num_cpu::get(), 8)
+// }
+
 #[derive(Debug, Deserialize)]
 pub struct Search {
     pub data_dir: PathBuf,
-    pub indexer_heap_size: u64,
+    #[serde(default)]
+    pub indexer_num_threads: Option<usize>,
+    pub indexer_heap_size: usize,
 }
 
 #[derive(Debug, Deserialize)]

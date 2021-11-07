@@ -40,15 +40,18 @@ pub type Result<T, E = crate::error::Error> = std::result::Result<T, E>;
 
 
 pub struct AppState {
+    pub config: AppConfig,
     pub indicies: IndexManager,
     pub auth: AuthService,
     pub access_control: AccessControlSerivce,
 }
 
 impl AppState {
-    pub fn from_config(config: &AppConfig) -> crate::Result<Self> {
+    pub fn from_config(config: AppConfig) -> crate::Result<Self> {
+        let data_dir = config.search.data_dir.clone();
         Ok(Self {
-            indicies: IndexManager::load_from(config.search.data_dir.clone())?,
+            config,
+            indicies: IndexManager::load_from(data_dir)?,
             auth: AuthService::new_test(),
             access_control: AccessControlSerivce::new_test(),
         })
@@ -63,9 +66,9 @@ async fn main() -> crate::Result<()> {
 
     let config = AppConfig::new()?;
     log::debug!("App config:\n{:#?}", &config);
+    log::info!("API server at http://{}", config.api.listen);
 
-    let state = AppState::from_config(&config)?;
-
-    api::run_server(state, &config).await?;
+    let state = AppState::from_config(config)?;
+    api::run_server(state).await?;
     Ok(())
 }
