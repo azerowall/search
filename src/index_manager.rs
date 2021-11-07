@@ -3,8 +3,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use anyhow::{anyhow, Context};
-
 use crate::config;
 use crate::index::{IndexConfig, LocalIndex};
 
@@ -42,18 +40,16 @@ impl IndexManager {
     pub async fn index<'s>(&'s self, name: &str) -> crate::Result<Arc<LocalIndex>> {
         let index = self
             .indicies
-            .read()
-            .map_err(|_| anyhow!("poison error"))?
+            .read()?
             .get(name)
-            .context(format!("index '{}' not exist", name))?
+            .ok_or_else(|| crate::Error::IndexNotExist(name.to_owned()))?
             .clone();
         Ok(index)
     }
 
     fn insert_index(&self, name: String, index: Arc<LocalIndex>) -> crate::Result<()> {
         self.indicies
-            .write()
-            .map_err(|_| anyhow!("poison error"))?
+            .write()?
             .insert(name, index);
         Ok(())
     }

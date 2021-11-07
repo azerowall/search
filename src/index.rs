@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use actix_web::web::block;
 use serde::Deserialize;
-use anyhow::{anyhow, Context};
 
 use crate::config;
 
@@ -59,16 +58,14 @@ impl LocalIndex {
         let doc = self.schema.parse_document(&req.doc)?;
         // TODO: если очередь заполнена, то вызов add_document может быть блокирующим
         self.writer
-            .read()
-            .map_err(|_| anyhow!("poison error"))?
+            .read()?
             .add_document(doc);
         if req.commit {
             let this = self.clone();
             block(move || -> crate::Result<()> {
                 log::debug!("Committing add");
                 this.writer
-                    .write()
-                    .map_err(|_| anyhow!("poison error"))?
+                    .write()?
                     .commit()?;
                 Ok(())
             })
@@ -87,14 +84,13 @@ impl LocalIndex {
         let field = self
             .schema
             .get_field(&field_name)
-            .context(format!("Field '{}' not exist", &field_name))?;
+            .ok_or(crate::Error::FieldNotExist(field_name))?;
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let term = crate::query::make_term(field, field_type, &term)?;
 
         self.writer
-            .read()
-            .map_err(|_| anyhow!("poison error"))?
+            .read()?
             .delete_term(term);
 
         if commit {
@@ -102,8 +98,7 @@ impl LocalIndex {
             block(move || -> crate::Result<_> {
                 log::debug!("Committing delete");
                 this.writer
-                    .write()
-                    .map_err(|_| anyhow!("poison error"))?
+                    .write()?
                     .commit()?;
                 Ok(())
             })
@@ -137,7 +132,7 @@ impl LocalIndex {
                         .map(|doc| this.schema.to_named_doc(&doc))
                         .map_err(From::from)
                 })
-                .collect::<crate::Result<Vec<_>, _>>()
+                .collect::<Result<Vec<_>, _>>()
         })
         .await
         .map_err(From::from)

@@ -1758,6 +1758,7 @@ dependencies = [
  "serde 1.0.130",
  "serde_json",
  "tantivy",
+ "thiserror",
 ]
 
 [[package]]

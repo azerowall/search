@@ -1,13 +1,15 @@
+use actix_web::error::{InternalError, JsonPayloadError};
 use serde::Deserialize;
 
 use actix_web::{
-    error, web, App, HttpRequest, HttpServer, Result,
+    error, web, App, HttpRequest, HttpResponse, HttpServer, Result,
 };
 use actix_web::middleware::Logger;
 
 use actix_web_httpauth::middleware::HttpAuthentication;
 
 use actix_cors::Cors;
+use serde_json::json;
 
 use crate::AppState;
 use crate::auth::{self, User};
@@ -26,6 +28,7 @@ pub async fn run_server(state: AppState) -> crate::Result<()> {
                 .wrap(Logger::default())
                 .wrap(Cors::permissive())
                 .app_data(state.clone())
+                .app_data(web::JsonConfig::default().error_handler(error_handler))
                 .configure(config_routes)
         }
     })
@@ -53,9 +56,22 @@ fn config_routes(conf: &mut web::ServiceConfig) {
     .route("/", web::get().to(status));
 }
 
-async fn status(req: HttpRequest, user: User) -> String {
-    format!("Tantivy version: {}\nuser: {:?}\nreq: {:#?}",
-        tantivy::version_string(), user, req)
+fn error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_web::Error {
+    let message = err.to_string();
+    InternalError::from_response("", HttpResponse::BadRequest().json(json!({
+        "error": {
+            "message": message
+        }
+    })))
+    .into()
+}
+
+async fn status() -> HttpResponse {
+    HttpResponse::Ok().json(json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "tantivy_version": tantivy::version_string(),
+        "tagline": "You Know, for Diploma!",
+    }))
 }
 
 async fn create_index(
