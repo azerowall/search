@@ -34,7 +34,7 @@ impl AppConfig {
     pub fn new() -> Result<Self, ConfigError> {
         let mut config = Config::default();
 
-        config.merge(File::with_name("config/default").required(true))?;
+        config.merge(File::with_name("config/default").required(false))?;
         config.merge(Environment::with_prefix(APP_NAME))?;
         config.try_into()
     }
