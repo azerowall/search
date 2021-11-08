@@ -40,16 +40,18 @@ impl IndexManager {
     pub async fn index<'s>(&'s self, name: &str) -> crate::Result<Arc<LocalIndex>> {
         let index = self
             .indicies
-            .read()?
+            .read()
+            .map_err(crate::error::lock_poisoned)?
             .get(name)
-            .ok_or_else(|| crate::Error::IndexNotExist(name.to_owned()))?
+            .ok_or_else(|| crate::error::index_not_exist(name.to_owned()))?
             .clone();
         Ok(index)
     }
 
     fn insert_index(&self, name: String, index: Arc<LocalIndex>) -> crate::Result<()> {
         self.indicies
-            .write()?
+            .write()
+            .map_err(crate::error::lock_poisoned)?
             .insert(name, index);
         Ok(())
     }

@@ -1,8 +1,3 @@
-
-
-use std::collections::HashSet;
-
-use actix_web::{Result, error::ErrorForbidden};
 use crate::auth::User;
 
 
@@ -12,7 +7,6 @@ pub enum Permission {
     READ,
     WRITE,
 }
-pub type PermissionSet = HashSet<Permission>;
 
 
 pub struct AccessControlSerivce {}
@@ -28,13 +22,11 @@ impl AccessControlSerivce {
         user: &User,
         index: &str,
         permission: &Permission
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         log::debug!(
             "check user({}) access to index({}) with permissions({:?})",
             user.name, index, permission
         );
-
-        //Err(ErrorForbidden("user has no access to index"))
 
         Ok(())
     }

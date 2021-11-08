@@ -1,8 +1,8 @@
-use actix_web::error::{InternalError, JsonPayloadError};
+use actix_web::error::{JsonPayloadError};
 use serde::Deserialize;
 
 use actix_web::{
-    error, web, App, HttpRequest, HttpResponse, HttpServer, Result,
+    web, App, HttpRequest, HttpResponse, HttpServer,
 };
 use actix_web::middleware::Logger;
 
@@ -57,13 +57,7 @@ fn config_routes(conf: &mut web::ServiceConfig) {
 }
 
 fn error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_web::Error {
-    let message = err.to_string();
-    InternalError::from_response("", HttpResponse::BadRequest().json(json!({
-        "error": {
-            "message": message
-        }
-    })))
-    .into()
+    crate::error::value_parsing_err(err).into()
 }
 
 async fn status() -> HttpResponse {
@@ -79,32 +73,28 @@ async fn create_index(
     user: User,
     web::Path((index_name,)): web::Path<(String,)>,
     web::Json(index_conf): web::Json<IndexConfig>,
-) -> Result<String> {
+) -> crate::Result<HttpResponse> {
     state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
 
-    let res = state
+    state
         .indicies
         .create_index(index_name, index_conf, &state.config.search)
-        .await
-        .map(|_| "ok".into())
-        .unwrap_or_else(|e| format!("error: {}", e.to_string()));
-    Ok(res)
+        .await?;
+    Ok(HttpResponse::Ok().into())
 }
 
 async fn delete_index(
     state: web::Data<AppState>,
     user: User,
     web::Path((index_name,)): web::Path<(String,)>,
-) -> Result<String> {
+) -> crate::Result<HttpResponse> {
     state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
     
-    let res = state
+    state
         .indicies
         .delete_index(index_name)
-        .await
-        .map(|_| "ok".into())
-        .unwrap_or_else(|e| format!("error: {}", e.to_string()));
-    Ok(res)
+        .await?;
+    Ok(HttpResponse::Ok().into())
 }
 
 #[derive(Deserialize)]
@@ -119,31 +109,29 @@ async fn add_document(
     web::Path((index_name,)): web::Path<(String,)>,
     query: web::Query<AddDocOptions>,
     body: web::Bytes,
-) -> Result<String> {
+) -> crate::Result<HttpResponse> {
     state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
 
     let index = state
         .indicies
         .index(&index_name)
-        .await
-        .map_err(error::ErrorInternalServerError)?;
+        .await?;
 
-    let doc = String::from_utf8(body.to_vec()).map_err(error::ErrorInternalServerError)?;
+    let doc = String::from_utf8(body.to_vec())?;
     let req = AddDocRequest {
         doc,
         commit: query.commit,
     };
     index
         .add_document(req)
-        .await
-        .map_err(error::ErrorInternalServerError)?;
-    Ok("ok".into())
+        .await?;
+    Ok(HttpResponse::Ok().into())
 }
 
 async fn _delete_by_term(
     _state: web::Data<AppState>,
     web::Path((_index_name,)): web::Path<(String,)>,
-) -> Result<()> {
+) -> crate::Result<()> {
     todo!()
 }
 
@@ -152,21 +140,17 @@ async fn search_documents(
     user: User,
     web::Path((index_name,)): web::Path<(String,)>,
     query: web::Query<SearchRequest>,
-) -> Result<String> {
+) -> crate::Result<HttpResponse> {
     state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
 
     let index = state
         .indicies
         .index(&index_name)
-        .await
-        .map_err(error::ErrorInternalServerError)?;
+        .await?;
 
     let docs = index
         .search(query.into_inner())
-        .await
-        .map_err(error::ErrorInternalServerError)?;
+        .await?;
 
-    let result = serde_json::to_string_pretty(&docs).map_err(error::ErrorInternalServerError)?;
-
-    Ok(result)
+    Ok(HttpResponse::Ok().json(docs))
 }

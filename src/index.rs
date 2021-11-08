@@ -58,14 +58,16 @@ impl LocalIndex {
         let doc = self.schema.parse_document(&req.doc)?;
         // TODO: если очередь заполнена, то вызов add_document может быть блокирующим
         self.writer
-            .read()?
+            .read()
+            .map_err(crate::error::lock_poisoned)?
             .add_document(doc);
         if req.commit {
             let this = self.clone();
             block(move || -> crate::Result<()> {
                 log::debug!("Committing add");
                 this.writer
-                    .write()?
+                    .write()
+                    .map_err(crate::error::lock_poisoned)?
                     .commit()?;
                 Ok(())
             })
@@ -84,13 +86,14 @@ impl LocalIndex {
         let field = self
             .schema
             .get_field(&field_name)
-            .ok_or(crate::Error::FieldNotExist(field_name))?;
+            .ok_or(crate::error::field_not_exist(field_name))?;
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let term = crate::query::make_term(field, field_type, &term)?;
 
         self.writer
-            .read()?
+            .read()
+            .map_err(crate::error::lock_poisoned)?
             .delete_term(term);
 
         if commit {
@@ -98,7 +101,8 @@ impl LocalIndex {
             block(move || -> crate::Result<_> {
                 log::debug!("Committing delete");
                 this.writer
-                    .write()?
+                    .write()
+                    .map_err(crate::error::lock_poisoned)?
                     .commit()?;
                 Ok(())
             })

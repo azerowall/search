@@ -1,73 +1,70 @@
-use actix_rt::blocking::BlockingError;
+use std::fmt;
+
+use anyhow::anyhow;
+
 use actix_web::{
     HttpResponse,
     ResponseError,
-    http::StatusCode};
-use serde_json::json;
-use tantivy::{
-    TantivyError,
-    schema::DocParsingError,
-    query::QueryParserError,
+    http::StatusCode
 };
-use thiserror::Error;
+use serde_json::json;
 
 
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("Config: {0}")]
-    Config(#[from] config::ConfigError),
-    // #[error("Error: {0}")]
-    // Actix(#[from] actix_web::Error),
-    #[error("IO: {0}")]
-    IO(#[from] std::io::Error),
-
-    #[error("Tantivy error: {0}")]
-    Tantivy(#[from] TantivyError),
-    #[error("Doc parsing error: {0}")]
-    DocParsingError(#[from] DocParsingError),
-    #[error("Query parsing error: {0}")]
-    QueryParsingError(#[from] QueryParserError),
-    #[error("Value parsing error: {0}")]
-    ValueParsingError(anyhow::Error),
-    #[error("Index '{0}' not exist")]
-    IndexNotExist(String),
-    #[error("Field '{0}' not exist")]
-    FieldNotExist(String),
-    #[error("Base64 decode error {0}")]
-    Base64DecodeError(base64::DecodeError),
-
-    #[error("Lock poisoned")]
-    LockPoisoned,
-
-    #[error("Thread pool is gone")]
-    Canceled,
+#[derive(Debug)]
+pub struct Error {
+    status_code: StatusCode,
+    err: anyhow::Error,
 }
 
 impl Error {
-    pub fn value_parsing_err<E: Into<anyhow::Error>>(err: E) -> Self {
-        Self::ValueParsingError(err.into())
+    fn internal(err: anyhow::Error) -> Self {
+        Self {
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            err,
+        }
     }
-}
-
-impl<Guard> From<std::sync::PoisonError<Guard>> for Error {
-    fn from(err: std::sync::PoisonError<Guard>) -> Self {
-        Self::LockPoisoned
+    fn not_found(err: anyhow::Error) -> Self {
+        Self {
+            status_code: StatusCode::NOT_FOUND,
+            err
+        }
     }
-}
-
-impl From<BlockingError<Error>> for Error {
-    fn from(err: BlockingError<Error>) -> Self {
-        match err {
-            BlockingError::Error(e) => e,
-            BlockingError::Canceled => Error::Canceled
+    fn bad_request(err: anyhow::Error) -> Self {
+        Self {
+            status_code: StatusCode::BAD_REQUEST,
+            err
         }
     }
 }
 
+pub fn lock_poisoned<Guard>(_err: std::sync::PoisonError<Guard>) -> Error {
+    Error::internal(anyhow!("Lock poisoned"))
+}
+pub fn index_not_exist(index: String) -> Error {
+    Error::not_found(anyhow!("Index '{0}' not exist", index))
+}
+pub fn field_not_exist(field: String) -> Error {
+    Error::bad_request(anyhow!("Field '{0}' not exist", field))
+}
+pub fn value_parsing_err<E: Into<anyhow::Error>>(err: E) -> Error {
+    Error::bad_request(err.into())
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.err.fmt(f)
+    }
+}
+
+impl<E: Into<anyhow::Error> + Send> From<E> for Error {
+    fn from(err: E) -> Self {
+        Self::internal(err.into())
+    }
+}
 
 impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
+        self.status_code
     }
 
     fn error_response(&self) -> HttpResponse {
@@ -79,5 +76,3 @@ impl ResponseError for Error {
         }))
     }
 }
-
-//pub type Error = anyhow::Error;
