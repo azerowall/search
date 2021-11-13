@@ -11,9 +11,6 @@ mod index;
 mod index_manager;
 mod query;
 
-#[cfg(test)]
-mod test;
-
 use crate::config::AppConfig;
 use crate::auth::AuthService;
 use crate::access_control::AccessControlSerivce;
