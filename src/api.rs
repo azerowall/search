@@ -14,6 +14,7 @@ use serde_json::json;
 use crate::AppState;
 use crate::auth::{self, User};
 use crate::access_control::{Permission};
+use crate::index_config::IndexConfig;
 use crate::index::*;
 
 
@@ -78,7 +79,7 @@ async fn create_index(
 
     state
         .indicies
-        .create_index(index_name, index_conf, &state.config.search)
+        .create_index(index_name, &index_conf, &state.config.search)
         .await?;
     Ok(HttpResponse::Ok().into())
 }

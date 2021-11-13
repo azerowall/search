@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use crate::config;
-use crate::index::{IndexConfig, LocalIndex};
+use crate::index_config::IndexConfig;
+use crate::index::{self, LocalIndex};
 
 pub struct IndexManager {
     data_dir: PathBuf,
@@ -20,15 +21,11 @@ impl IndexManager {
         })
     }
 
-    pub async fn create_index(&self, name: String, index_conf: IndexConfig, conf: &config::Search) -> crate::Result<()> {
+    pub async fn create_index(&self, name: String, index_conf: &IndexConfig, conf: &config::Search) -> crate::Result<()> {
         let path = self.index_path(&name);
-        fs::create_dir_all(&path)?;
 
-        let IndexConfig { settings, schema } = index_conf;
-        let index = tantivy::Index::builder()
-            .settings(settings)
-            .schema(schema)
-            .create_in_dir(&path)?;
+        let index = index::create_index_in_dir(&path, index_conf)?;
+
         let index = Arc::new(LocalIndex::from_index(name.clone(), index, conf)?);
         self.insert_index(name, index)
     }

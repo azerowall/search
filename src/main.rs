@@ -5,6 +5,7 @@ mod api;
 mod auth;
 mod access_control;
 mod error;
+mod index_config;
 mod index;
 mod index_manager;
 mod query;

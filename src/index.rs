@@ -1,10 +1,12 @@
 use std::sync::RwLock;
 use std::sync::Arc;
+use std::path::Path;
 
 use actix_web::web::block;
 use serde::Deserialize;
 
 use crate::config;
+use crate::index_config::IndexConfig;
 
 pub struct AddDocRequest {
     pub doc: String,
@@ -24,12 +26,6 @@ pub struct SearchRequest {
     pub offset: usize,
 }
 
-#[derive(Deserialize)]
-pub struct IndexConfig {
-    pub settings: tantivy::IndexSettings,
-    pub schema: tantivy::schema::Schema,
-}
-
 pub struct LocalIndex {
     schema: tantivy::schema::Schema,
     index: tantivy::Index,
@@ -37,7 +33,22 @@ pub struct LocalIndex {
     writer: RwLock<tantivy::IndexWriter>,
 }
 
+pub fn create_index_in_dir(path: &Path, index_conf: &IndexConfig) -> crate::Result<tantivy::Index> {
+    let index = tantivy::Index::builder()
+        .settings(index_conf.settings.clone())
+        .schema(index_conf.schema.clone())
+        .create_in_dir(&path)?;
+
+    let tokenizers = index.tokenizers();
+    for analyzer in &index_conf.analyzers {
+        tokenizers.register(&analyzer.name, analyzer.make_analyzer())
+    }
+
+    Ok(index)
+}
+
 impl LocalIndex {
+
     pub fn from_index(_name: String, index: tantivy::Index, config: &config::Search) -> crate::Result<LocalIndex> {
         let schema = index.schema();
         let reader = index.reader()?;
