@@ -7,6 +7,7 @@ pub struct AddDocReq {
     pub commit: bool,
 }
 
+#[derive(Deserialize)]
 pub struct DeleteByTermReq {
     pub field: String,
     pub term: String,

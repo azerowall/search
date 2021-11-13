@@ -40,21 +40,17 @@ pub async fn run_server(state: AppState) -> crate::Result<()> {
 }
 
 fn config_routes(conf: &mut web::ServiceConfig) {
-    conf.service(
-        web::scope("/{index}")
-            .service(
-                web::resource("/")
-                    .route(web::put().to(create_index))
-                    .route(web::post().to(create_index))
-                    .route(web::delete().to(delete_index)),
-            )
-            .service(
-                web::resource("/_doc")
-                    .route(web::get().to(search_documents))
-                    .route(web::post().to(add_document)), //.route(web::post().to(delete_by_term))
-            ),
-    )
-    .route("/", web::get().to(status));
+    conf
+        .service(web::resource("/").route(web::get().to(status)))
+        .service(web::resource("/{index}")
+            .route(web::put().to(create_index))
+            .route(web::delete().to(delete_index))
+        )
+        .service( web::scope("/{index}/")
+            .route("/", web::get().to(add_document))
+            .route("/_search", web::get().to(search_documents))
+            .route("/_delete_by_term", web::post().to(delete_by_term))
+        );
 }
 
 fn error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_web::Error {
@@ -123,17 +119,26 @@ async fn add_document(
         doc,
         commit: query.commit,
     };
-    index
-        .add_document(req)
-        .await?;
+    index.add_document(req).await?;
     Ok(HttpResponse::Ok().into())
 }
 
-async fn _delete_by_term(
-    _state: web::Data<AppState>,
-    web::Path((_index_name,)): web::Path<(String,)>,
-) -> crate::Result<()> {
-    todo!()
+async fn delete_by_term(
+    state: web::Data<AppState>,
+    user: User,
+    web::Path((index_name,)): web::Path<(String,)>,
+    req: web::Query<DeleteByTermReq>,
+) -> crate::Result<HttpResponse> {
+    state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
+
+    let index = state
+        .indicies
+        .index(&index_name)
+        .await?;
+
+    index.delete_by_term(req.into_inner()).await?;
+    
+    Ok(HttpResponse::Ok().finish())
 }
 
 async fn search_documents(
