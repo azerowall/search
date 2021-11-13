@@ -1,6 +1,7 @@
 //#![allow(dead_code, unused_imports)]
 
 mod config;
+mod dto;
 mod api;
 mod auth;
 mod access_control;

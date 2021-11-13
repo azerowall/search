@@ -15,7 +15,7 @@ use crate::AppState;
 use crate::auth::{self, User};
 use crate::access_control::{Permission};
 use crate::index_config::IndexConfig;
-use crate::index::*;
+use crate::dto::*;
 
 
 pub async fn run_server(state: AppState) -> crate::Result<()> {
@@ -119,7 +119,7 @@ async fn add_document(
         .await?;
 
     let doc = String::from_utf8(body.to_vec())?;
-    let req = AddDocRequest {
+    let req = AddDocReq {
         doc,
         commit: query.commit,
     };
@@ -140,7 +140,7 @@ async fn search_documents(
     state: web::Data<AppState>,
     user: User,
     web::Path((index_name,)): web::Path<(String,)>,
-    query: web::Query<SearchRequest>,
+    query: web::Query<SearchReq>,
 ) -> crate::Result<HttpResponse> {
     state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
 

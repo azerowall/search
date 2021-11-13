@@ -3,28 +3,11 @@ use std::sync::Arc;
 use std::path::Path;
 
 use actix_web::web::block;
-use serde::Deserialize;
 
 use crate::config;
 use crate::index_config::IndexConfig;
+use crate::dto::*;
 
-pub struct AddDocRequest {
-    pub doc: String,
-    pub commit: bool,
-}
-
-pub struct DeleteByTermRequest {
-    pub field: String,
-    pub term: String,
-    pub commit: bool,
-}
-
-#[derive(Deserialize)]
-pub struct SearchRequest {
-    pub query: String,
-    pub limit: usize,
-    pub offset: usize,
-}
 
 pub struct LocalIndex {
     schema: tantivy::schema::Schema,
@@ -65,7 +48,7 @@ impl LocalIndex {
         })
     }
 
-    pub async fn add_document(self: &Arc<Self>, req: AddDocRequest) -> crate::Result<()> {
+    pub async fn add_document(self: &Arc<Self>, req: AddDocReq) -> crate::Result<()> {
         let doc = self.schema.parse_document(&req.doc)?;
         // TODO: если очередь заполнена, то вызов add_document может быть блокирующим
         self.writer
@@ -87,8 +70,8 @@ impl LocalIndex {
         Ok(())
     }
 
-    pub async fn delete_by_term(self: &Arc<Self>, req: DeleteByTermRequest) -> crate::Result<()> {
-        let DeleteByTermRequest {
+    pub async fn delete_by_term(self: &Arc<Self>, req: DeleteByTermReq) -> crate::Result<()> {
+        let DeleteByTermReq {
             field: field_name,
             term,
             commit,
@@ -129,8 +112,8 @@ impl LocalIndex {
 
     pub async fn search(
         self: &Arc<Self>,
-        req: SearchRequest,
-    ) -> crate::Result<Vec<tantivy::schema::NamedFieldDocument>> {
+        req: SearchReq,
+    ) -> crate::Result<SearchResp> {
         let this = self.clone();
         block(move || -> crate::Result<_> {
             let searcher = this.reader.searcher();
@@ -140,14 +123,18 @@ impl LocalIndex {
                 tantivy::collector::TopDocs::with_limit(req.limit).and_offset(req.offset);
             let docs = searcher.search(&query, &collector)?;
 
-            docs.iter()
-                .map(|(_score, doc_address)| {
-                    searcher
+            let docs = docs.iter()
+                .map(|(score, doc_address)| -> tantivy::Result<_> {
+                    let named_doc = searcher
                         .doc(*doc_address)
-                        .map(|doc| this.schema.to_named_doc(&doc))
-                        .map_err(From::from)
+                        .map(|doc| this.schema.to_named_doc(&doc))?;
+                    Ok(ScoredDocument {
+                        score: *score,
+                        doc: named_doc,
+                    })
                 })
-                .collect::<Result<Vec<_>, _>>()
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(SearchResp { docs })
         })
         .await
         .map_err(From::from)
