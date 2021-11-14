@@ -8,24 +8,24 @@ use crate::index_config::IndexConfig;
 use crate::index::{self, LocalIndex};
 
 pub struct IndexManager {
-    data_dir: PathBuf,
+    conf: config::Search,
     indicies: RwLock<HashMap<String, Arc<LocalIndex>>>,
 }
 
 impl IndexManager {
-    pub fn load_from(data_dir: PathBuf) -> crate::Result<Self> {
-        fs::create_dir_all(&data_dir)?;
+    pub fn new(conf: config::Search) -> crate::Result<Self> {
+        fs::create_dir_all(&conf.data_dir)?;
         Ok(Self {
-            data_dir,
+            conf,
             indicies: RwLock::default(),
         })
     }
 
-    pub async fn create_index(&self, name: String, index_conf: &IndexConfig, conf: &config::Search) -> crate::Result<()> {
+    pub async fn create_index(&self, name: String, index_conf: &IndexConfig) -> crate::Result<()> {
         let path = self.index_path(&name);
         fs::create_dir_all(&path)?;
         let index = index::create_index_in_dir(&path, index_conf)?;
-        let index = Arc::new(LocalIndex::from_index(name.clone(), index, conf)?);
+        let index = Arc::new(LocalIndex::from_index(name.clone(), index, &self.conf)?);
         self.insert_index(name, index)
     }
 
@@ -34,14 +34,27 @@ impl IndexManager {
     }
 
     pub async fn index<'s>(&'s self, name: &str) -> crate::Result<Arc<LocalIndex>> {
-        let index = self
-            .indicies
+        let index = self.indicies
             .read()
             .map_err(crate::error::lock_poisoned)?
             .get(name)
-            .ok_or_else(|| crate::error::index_not_exist(name.to_owned()))?
-            .clone();
-        Ok(index)
+            .cloned();
+        if let Some(index) = index {
+            Ok(index)
+        } else {
+            let path = self.index_path(name);
+            // TODO: map index not exist error
+            // TODO: analyzers not stored in meta.json
+            let index = index::open_index_in_dir(&path)?;
+            let index = Arc::new(LocalIndex::from_index(name.to_string(), index, &self.conf)?);
+            
+            self.indicies
+                .write()
+                .map_err(crate::error::lock_poisoned)?
+                .insert(name.to_string(), index.clone());
+            
+            Ok(index)
+        }
     }
 
     fn insert_index(&self, name: String, index: Arc<LocalIndex>) -> crate::Result<()> {
@@ -53,6 +66,6 @@ impl IndexManager {
     }
 
     fn index_path<P: AsRef<Path>>(&self, name: P) -> PathBuf {
-        self.data_dir.join(name)
+        self.conf.data_dir.join(name)
     }
 }

@@ -15,7 +15,7 @@ pub struct Api {
 //     std::cmp::min(num_cpu::get(), 8)
 // }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Search {
     pub data_dir: PathBuf,
     #[serde(default)]

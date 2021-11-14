@@ -47,10 +47,10 @@ pub struct AppState {
 
 impl AppState {
     pub fn from_config(config: AppConfig) -> crate::Result<Self> {
-        let data_dir = config.search.data_dir.clone();
+        let search_conf = config.search.clone();
         Ok(Self {
             config,
-            indicies: IndexManager::load_from(data_dir)?,
+            indicies: IndexManager::new(search_conf)?,
             auth: AuthService::new_test(),
             access_control: AccessControlSerivce::new_test(),
         })

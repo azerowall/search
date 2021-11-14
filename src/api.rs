@@ -75,7 +75,7 @@ async fn create_index(
 
     state
         .indicies
-        .create_index(index_name, &index_conf, &state.config.search)
+        .create_index(index_name, &index_conf)
         .await?;
     Ok(HttpResponse::Ok().into())
 }

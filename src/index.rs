@@ -30,6 +30,11 @@ pub fn create_index_in_dir(path: &Path, index_conf: &IndexConfig) -> crate::Resu
     Ok(index)
 }
 
+pub fn open_index_in_dir(path: &Path) -> crate::Result<tantivy::Index> {
+    let index = tantivy::Index::open_in_dir(path)?;
+    Ok(index)
+}
+
 impl LocalIndex {
 
     pub fn from_index(_name: String, index: tantivy::Index, config: &config::Search) -> crate::Result<LocalIndex> {
