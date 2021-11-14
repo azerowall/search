@@ -46,8 +46,8 @@ fn config_routes(conf: &mut web::ServiceConfig) {
             .route(web::put().to(create_index))
             .route(web::delete().to(delete_index))
         )
-        .service( web::scope("/{index}/")
-            .route("/", web::get().to(add_document))
+        .service( web::scope("/{index}")
+            .route("/", web::post().to(add_document))
             .route("/_search", web::get().to(search_documents))
             .route("/_delete_by_term", web::post().to(delete_by_term))
         );

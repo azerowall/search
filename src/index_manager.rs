@@ -23,9 +23,8 @@ impl IndexManager {
 
     pub async fn create_index(&self, name: String, index_conf: &IndexConfig, conf: &config::Search) -> crate::Result<()> {
         let path = self.index_path(&name);
-
+        fs::create_dir_all(&path)?;
         let index = index::create_index_in_dir(&path, index_conf)?;
-
         let index = Arc::new(LocalIndex::from_index(name.clone(), index, conf)?);
         self.insert_index(name, index)
     }
