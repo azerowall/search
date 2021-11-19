@@ -1,7 +1,7 @@
 use tantivy::schema::{Schema as TantivySchema};
 use tantivy::tokenizer::{
     TextAnalyzer, FacetTokenizer, NgramTokenizer, RawTokenizer, SimpleTokenizer,
-    BoxTokenFilter, AlphaNumOnlyFilter, AsciiFoldingFilter, RemoveLongFilter, Stemmer,
+    BoxTokenFilter, AlphaNumOnlyFilter, AsciiFoldingFilter, RemoveLongFilter, Stemmer, LowerCaser,
 };
 use serde::{Serialize, Deserialize};
 
@@ -58,6 +58,7 @@ impl From<&StemmerConfig> for Stemmer {
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum TokenFilterConfig {
+    Lowercase,
     //Stop,
     RemoveLong(RemoveLongFilterConfig),
     AlphaNum,
@@ -68,6 +69,7 @@ pub enum TokenFilterConfig {
 impl TokenFilterConfig {
     pub fn make_token_filter(&self) -> BoxTokenFilter {
         match self {
+            TokenFilterConfig::Lowercase => LowerCaser.into(),
             TokenFilterConfig::RemoveLong(conf) => RemoveLongFilter::from(conf).into(),
             TokenFilterConfig::AlphaNum => AlphaNumOnlyFilter.into(),
             TokenFilterConfig::AsciiFolding => AsciiFoldingFilter.into(),
