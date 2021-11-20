@@ -89,7 +89,7 @@ async fn delete_index(
     
     state
         .indicies
-        .delete_index(index_name)
+        .delete_index(&index_name)
         .await?;
     Ok(HttpResponse::Ok().into())
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::{Arc, RwLock};
 
 use crate::config;
@@ -29,8 +29,14 @@ impl IndexManager {
         self.insert_index(name, index)
     }
 
-    pub async fn delete_index(&self, _name: String) -> crate::Result<()> {
-        todo!()
+    pub async fn delete_index(&self, name: &str) -> crate::Result<()> {
+        self.indicies
+            .write()
+            .map_err(crate::error::lock_poisoned)?
+            .remove(name);
+        let path = self.index_path(name)?;
+        fs::remove_dir_all(path)?;
+        Ok(())
     }
 
     pub async fn index<'s>(&'s self, name: &str) -> crate::Result<Arc<LocalIndex>> {
