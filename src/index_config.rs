@@ -103,13 +103,14 @@ impl AnalyzerConfig {
     }
 }
 
+pub type Analyzers = Vec<AnalyzerConfig>;
 
 #[derive(Serialize, Deserialize)]
 pub struct IndexConfig {
     #[serde(default)]
     pub settings: tantivy::IndexSettings,
     #[serde(default)]
-    pub analyzers: Vec<AnalyzerConfig>,
+    pub analyzers: Analyzers,
     pub schema: TantivySchema,
 }
 

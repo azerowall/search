@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::config;
 use crate::index_config::IndexConfig;
-use crate::index::{self, LocalIndex};
+use crate::index::{LocalIndex};
 
 pub struct IndexManager {
     conf: config::Search,
@@ -24,8 +24,8 @@ impl IndexManager {
     pub async fn create_index(&self, name: String, index_conf: &IndexConfig) -> crate::Result<()> {
         let path = self.index_path(&name);
         fs::create_dir_all(&path)?;
-        let index = index::create_index_in_dir(&path, index_conf)?;
-        let index = Arc::new(LocalIndex::from_index(name.clone(), index, &self.conf)?);
+        let index = LocalIndex::creare_in_dir(&path, index_conf, &self.conf)?;
+        let index = Arc::new(index);
         self.insert_index(name, index)
     }
 
@@ -44,9 +44,8 @@ impl IndexManager {
         } else {
             let path = self.index_path(name);
             // TODO: map index not exist error
-            // TODO: analyzers not stored in meta.json
-            let index = index::open_index_in_dir(&path)?;
-            let index = Arc::new(LocalIndex::from_index(name.to_string(), index, &self.conf)?);
+            let index = LocalIndex::open_in_dir(&path, &self.conf)?;
+            let index = Arc::new(index);
             
             self.indicies
                 .write()

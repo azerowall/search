@@ -5,9 +5,10 @@ use std::path::Path;
 use actix_web::web::block;
 
 use crate::config;
-use crate::index_config::IndexConfig;
+use crate::index_config::{IndexConfig, Analyzers};
 use crate::dto::*;
 
+const ANALYZERS_FILE: &'static str = "analyzers.json";
 
 pub struct LocalIndex {
     schema: tantivy::schema::Schema,
@@ -16,28 +17,48 @@ pub struct LocalIndex {
     writer: RwLock<tantivy::IndexWriter>,
 }
 
-pub fn create_index_in_dir(path: &Path, index_conf: &IndexConfig) -> crate::Result<tantivy::Index> {
-    let index = tantivy::Index::builder()
-        .settings(index_conf.settings.clone())
-        .schema(index_conf.schema.clone())
-        .create_in_dir(&path)?;
-
-    let tokenizers = index.tokenizers();
-    for analyzer in &index_conf.analyzers {
-        tokenizers.register(&analyzer.name, analyzer.make_analyzer())
-    }
-
-    Ok(index)
-}
-
-pub fn open_index_in_dir(path: &Path) -> crate::Result<tantivy::Index> {
-    let index = tantivy::Index::open_in_dir(path)?;
-    Ok(index)
-}
-
 impl LocalIndex {
 
-    pub fn from_index(_name: String, index: tantivy::Index, config: &config::Search) -> crate::Result<LocalIndex> {
+    pub fn creare_in_dir(
+        path: &Path,
+        index_conf: &IndexConfig,
+        config: &config::Search
+    ) -> crate::Result<Self> {
+        let index = tantivy::Index::builder()
+            .settings(index_conf.settings.clone())
+            .schema(index_conf.schema.clone())
+            .create_in_dir(&path)?;
+
+        let analyzers_file = std::fs::File::create(path.join(ANALYZERS_FILE))?;
+        serde_json::to_writer(analyzers_file, &index_conf.analyzers)?;
+
+        Self::add_analyzers(&index, &index_conf.analyzers);
+
+        Self::from_tantivy_index(index, config)
+    }
+
+    pub fn open_in_dir(
+        path: &Path,
+        config: &config::Search
+    ) -> crate::Result<Self> {
+        let index = tantivy::Index::open_in_dir(path)?;
+
+        let analyzers_file = std::fs::File::open(path.join(ANALYZERS_FILE))?;
+        let analyzers: Analyzers = serde_json::from_reader(analyzers_file)?;
+
+        Self::add_analyzers(&index, &analyzers);
+
+        Self::from_tantivy_index(index, config)
+    }
+
+    fn add_analyzers(index: &tantivy::Index, analyzers: &Analyzers) {
+        let tokenizers = index.tokenizers();
+        for analyzer in analyzers {
+            tokenizers.register(&analyzer.name, analyzer.make_analyzer())
+        }
+    }
+
+    fn from_tantivy_index(index: tantivy::Index, config: &config::Search) -> crate::Result<LocalIndex> {
         let schema = index.schema();
         let reader = index.reader()?;
         let writer = if let Some(num_threads) = config.indexer_num_threads {
