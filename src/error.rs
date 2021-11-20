@@ -49,6 +49,9 @@ pub fn field_not_exist(field: String) -> Error {
 pub fn value_parsing_err<E: Into<anyhow::Error>>(err: E) -> Error {
     Error::bad_request(err.into())
 }
+pub fn invalid_index_name(name: String) -> Error {
+    Error::bad_request(anyhow!(name))
+}
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

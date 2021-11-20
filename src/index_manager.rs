@@ -22,7 +22,7 @@ impl IndexManager {
     }
 
     pub async fn create_index(&self, name: String, index_conf: &IndexConfig) -> crate::Result<()> {
-        let path = self.index_path(&name);
+        let path = self.index_path(&name)?;
         fs::create_dir_all(&path)?;
         let index = LocalIndex::creare_in_dir(&path, index_conf, &self.conf)?;
         let index = Arc::new(index);
@@ -42,15 +42,12 @@ impl IndexManager {
         if let Some(index) = index {
             Ok(index)
         } else {
-            let path = self.index_path(name);
+            let path = self.index_path(name)?;
             // TODO: map index not exist error
             let index = LocalIndex::open_in_dir(&path, &self.conf)?;
             let index = Arc::new(index);
             
-            self.indicies
-                .write()
-                .map_err(crate::error::lock_poisoned)?
-                .insert(name.to_string(), index.clone());
+            self.insert_index(name.to_string(), index.clone())?;
             
             Ok(index)
         }
@@ -64,7 +61,11 @@ impl IndexManager {
         Ok(())
     }
 
-    fn index_path<P: AsRef<Path>>(&self, name: P) -> PathBuf {
-        self.conf.data_dir.join(name)
+    fn index_path(&self, name: &str) -> crate::Result<PathBuf> {
+        if !name.chars().all(|c: char| c.is_ascii_alphanumeric() || c == '_') {
+            Err(crate::error::invalid_index_name(name.to_string()))
+        } else {
+            Ok(self.conf.data_dir.join(name))
+        }
     }
 }
