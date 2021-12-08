@@ -1,4 +1,4 @@
-use crate::auth::{User, UserId};
+use crate::security::authc::{User, UserId};
 use crate::Result;
 use anyhow::anyhow;
 use bitflags::bitflags;

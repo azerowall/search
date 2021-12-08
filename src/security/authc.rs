@@ -122,7 +122,7 @@ impl AuthService {
     }
 }
 
-pub async fn validator(
+pub async fn authentication_handler(
     req: ServiceRequest,
     creds: BasicAuth,
 ) -> Result<ServiceRequest, actix_web::Error> {

@@ -9,10 +9,12 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use actix_cors::Cors;
 use serde_json::json;
 
-use crate::access_control::{IndexPrivileges, SystemPrivileges};
-use crate::auth::{self, AddUserReq, User};
 use crate::dto::*;
 use crate::index_config::IndexConfig;
+use crate::security::{
+    authc::{authentication_handler, AddUserReq, User},
+    authz::{IndexPrivileges, SystemPrivileges},
+};
 use crate::AppState;
 
 pub async fn run_server(state: AppState) -> crate::Result<()> {
@@ -22,7 +24,7 @@ pub async fn run_server(state: AppState) -> crate::Result<()> {
         let state = state.clone();
         move || {
             App::new()
-                .wrap(HttpAuthentication::basic(auth::validator))
+                .wrap(HttpAuthentication::basic(authentication_handler))
                 .wrap(Logger::default())
                 .wrap(Cors::permissive())
                 .app_data(state.clone())

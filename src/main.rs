@@ -1,8 +1,4 @@
-//#![allow(dead_code, unused_imports)]
-
-mod access_control;
 mod api;
-mod auth;
 mod config;
 mod dto;
 mod error;
@@ -10,31 +6,25 @@ mod index;
 mod index_config;
 mod index_manager;
 mod query;
+mod security;
 
-use crate::access_control::AccessControlService;
-use crate::auth::AuthService;
 use crate::config::AppConfig;
 use crate::index_manager::IndexManager;
+use crate::security::{authc::AuthService, authz::AccessControlService};
 
 pub use crate::error::Error;
 pub type Result<T, E = crate::error::Error> = std::result::Result<T, E>;
 
 /*
     TODO:
-    IndexManager - RwLock внутри или снаружи?
-    IndexWriter под Arc или весь LocalIndex под Arc?
     commit каждую секунду
     тестирование - setup/teardown
-    конфиг
-    dto
     ленивая инициализация IndexReader и IndexWriter
     разделение Scheme и LocalIndex - Scheme может храниться даже если самого индекса на этой ноде нет.
     primary key ?
     кластер: шардинг, репликация
     шифрование трафика api
     шифрование трафика кластера
-    аутентификация/авторизация
-    пользователи и права - а нужно ли?
 */
 
 pub struct AppState {
