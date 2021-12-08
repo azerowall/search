@@ -1,6 +1,5 @@
 use crate::auth::User;
 
-
 // TODO: bitflags
 #[derive(Debug)]
 pub enum Permission {
@@ -8,11 +7,9 @@ pub enum Permission {
     WRITE,
 }
 
+pub struct AccessControlService {}
 
-pub struct AccessControlSerivce {}
-
-
-impl AccessControlSerivce {
+impl AccessControlService {
     pub fn new_test() -> Self {
         Self {}
     }
@@ -21,11 +18,13 @@ impl AccessControlSerivce {
         &self,
         user: &User,
         index: &str,
-        permission: &Permission
+        permission: &Permission,
     ) -> crate::Result<()> {
         log::debug!(
             "check user({}) access to index({}) with permissions({:?})",
-            user.name, index, permission
+            user.name,
+            index,
+            permission
         );
 
         Ok(())

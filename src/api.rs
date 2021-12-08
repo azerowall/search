@@ -1,22 +1,19 @@
-use actix_web::error::{JsonPayloadError};
+use actix_web::error::JsonPayloadError;
 use serde::Deserialize;
 
-use actix_web::{
-    web, App, HttpRequest, HttpResponse, HttpServer,
-};
 use actix_web::middleware::Logger;
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 
 use actix_web_httpauth::middleware::HttpAuthentication;
 
 use actix_cors::Cors;
 use serde_json::json;
 
-use crate::AppState;
-use crate::auth::{self, User};
-use crate::access_control::{Permission};
-use crate::index_config::IndexConfig;
+use crate::access_control::Permission;
+use crate::auth::{self, AddUserReq, User};
 use crate::dto::*;
-
+use crate::index_config::IndexConfig;
+use crate::AppState;
 
 pub async fn run_server(state: AppState) -> crate::Result<()> {
     let state = web::Data::new(state);
@@ -33,23 +30,33 @@ pub async fn run_server(state: AppState) -> crate::Result<()> {
                 .configure(config_routes)
         }
     })
-        .bind(state.config.api.listen)?
-        .run()
-        .await
-        .map_err(From::from)
+    .bind(state.config.api.listen)?
+    .run()
+    .await
+    .map_err(From::from)
 }
 
 fn config_routes(conf: &mut web::ServiceConfig) {
-    conf
-        .service(web::resource("/").route(web::get().to(status)))
-        .service(web::resource("/{index}")
-            .route(web::put().to(create_index))
-            .route(web::delete().to(delete_index))
+    conf.service(web::resource("/").route(web::get().to(status)))
+        .service(
+            web::scope("/_users")
+                .service(
+                    web::resource("/")
+                        .route(web::post().to(add_user))
+                        .route(web::get().to(list_users)),
+                )
+                .service(web::resource("/{user}").route(web::delete().to(remove_user))),
         )
-        .service( web::scope("/{index}")
-            .route("/", web::post().to(add_document))
-            .route("/_search", web::get().to(search_documents))
-            .route("/_delete_by_term", web::post().to(delete_by_term))
+        .service(
+            web::resource("/{index}")
+                .route(web::put().to(create_index))
+                .route(web::delete().to(delete_index)),
+        )
+        .service(
+            web::scope("/{index}")
+                .route("/", web::post().to(add_document))
+                .route("/_search", web::get().to(search_documents))
+                .route("/_delete_by_term", web::post().to(delete_by_term)),
         );
 }
 
@@ -65,18 +72,40 @@ async fn status() -> HttpResponse {
     }))
 }
 
+async fn add_user(
+    state: web::Data<AppState>,
+    _user: User,
+    web::Json(new_user): web::Json<AddUserReq>,
+) -> crate::Result<HttpResponse> {
+    state.auth.add_user(new_user)?;
+    Ok(HttpResponse::Ok().into())
+}
+
+async fn remove_user(
+    state: web::Data<AppState>,
+    _user: User,
+    web::Path(user_name): web::Path<String>,
+) -> crate::Result<HttpResponse> {
+    state.auth.remove_user(&user_name)?;
+    Ok(HttpResponse::Ok().into())
+}
+
+async fn list_users(state: web::Data<AppState>, _user: User) -> crate::Result<HttpResponse> {
+    let users = state.auth.list_users()?;
+    Ok(HttpResponse::Ok().json(users))
+}
+
 async fn create_index(
     state: web::Data<AppState>,
     user: User,
     web::Path((index_name,)): web::Path<(String,)>,
     web::Json(index_conf): web::Json<IndexConfig>,
 ) -> crate::Result<HttpResponse> {
-    state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
-
     state
-        .indicies
-        .create_index(index_name, &index_conf)
-        .await?;
+        .access_control
+        .check_index_access(&user, &index_name, &Permission::WRITE)?;
+
+    state.indices.create_index(index_name, &index_conf).await?;
     Ok(HttpResponse::Ok().into())
 }
 
@@ -85,12 +114,11 @@ async fn delete_index(
     user: User,
     web::Path((index_name,)): web::Path<(String,)>,
 ) -> crate::Result<HttpResponse> {
-    state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
-    
     state
-        .indicies
-        .delete_index(&index_name)
-        .await?;
+        .access_control
+        .check_index_access(&user, &index_name, &Permission::WRITE)?;
+
+    state.indices.delete_index(&index_name).await?;
     Ok(HttpResponse::Ok().into())
 }
 
@@ -107,12 +135,11 @@ async fn add_document(
     query: web::Query<AddDocOptions>,
     body: web::Bytes,
 ) -> crate::Result<HttpResponse> {
-    state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
+    state
+        .access_control
+        .check_index_access(&user, &index_name, &Permission::WRITE)?;
 
-    let index = state
-        .indicies
-        .index(&index_name)
-        .await?;
+    let index = state.indices.index(&index_name).await?;
 
     let doc = String::from_utf8(body.to_vec())?;
     let req = AddDocReq {
@@ -129,15 +156,14 @@ async fn delete_by_term(
     web::Path((index_name,)): web::Path<(String,)>,
     req: web::Query<DeleteByTermReq>,
 ) -> crate::Result<HttpResponse> {
-    state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
+    state
+        .access_control
+        .check_index_access(&user, &index_name, &Permission::WRITE)?;
 
-    let index = state
-        .indicies
-        .index(&index_name)
-        .await?;
+    let index = state.indices.index(&index_name).await?;
 
     index.delete_by_term(req.into_inner()).await?;
-    
+
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -147,16 +173,13 @@ async fn search_documents(
     web::Path((index_name,)): web::Path<(String,)>,
     query: web::Query<SearchReq>,
 ) -> crate::Result<HttpResponse> {
-    state.access_control.check_index_access(&user, &index_name, &Permission::WRITE)?;
+    state
+        .access_control
+        .check_index_access(&user, &index_name, &Permission::WRITE)?;
 
-    let index = state
-        .indicies
-        .index(&index_name)
-        .await?;
+    let index = state.indices.index(&index_name).await?;
 
-    let docs = index
-        .search(query.into_inner())
-        .await?;
+    let docs = index.search(query.into_inner()).await?;
 
     Ok(HttpResponse::Ok().json(docs))
 }

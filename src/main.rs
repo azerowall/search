@@ -1,19 +1,19 @@
 //#![allow(dead_code, unused_imports)]
 
-mod config;
-mod dto;
+mod access_control;
 mod api;
 mod auth;
-mod access_control;
+mod config;
+mod dto;
 mod error;
-mod index_config;
 mod index;
+mod index_config;
 mod index_manager;
 mod query;
 
-use crate::config::AppConfig;
+use crate::access_control::AccessControlService;
 use crate::auth::AuthService;
-use crate::access_control::AccessControlSerivce;
+use crate::config::AppConfig;
 use crate::index_manager::IndexManager;
 
 pub use crate::error::Error;
@@ -37,26 +37,25 @@ pub type Result<T, E = crate::error::Error> = std::result::Result<T, E>;
     пользователи и права - а нужно ли?
 */
 
-
 pub struct AppState {
     pub config: AppConfig,
-    pub indicies: IndexManager,
+    pub indices: IndexManager,
     pub auth: AuthService,
-    pub access_control: AccessControlSerivce,
+    pub access_control: AccessControlService,
 }
 
 impl AppState {
     pub fn from_config(config: AppConfig) -> crate::Result<Self> {
         let search_conf = config.search.clone();
+        let users_file = config.search.data_dir.join("users.json");
         Ok(Self {
             config,
-            indicies: IndexManager::new(search_conf)?,
-            auth: AuthService::new_test(),
-            access_control: AccessControlSerivce::new_test(),
+            indices: IndexManager::new(search_conf)?,
+            auth: AuthService::new(users_file)?,
+            access_control: AccessControlService::new_test(),
         })
     }
 }
-
 
 #[actix_web::main]
 async fn main() -> crate::Result<()> {
