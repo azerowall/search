@@ -1751,6 +1751,7 @@ dependencies = [
  "actix-web-httpauth",
  "anyhow",
  "base64",
+ "bitflags",
  "config",
  "futures",
  "log",

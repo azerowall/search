@@ -1,3 +1,12 @@
+use crate::AppState;
+use crate::Result;
+use actix_web::{dev::ServiceRequest, web, FromRequest, HttpMessage, HttpRequest};
+use actix_web_httpauth::extractors::{
+    basic::{BasicAuth, Config},
+    AuthenticationError,
+};
+use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::Entry, HashMap},
     fs::{self, File},
@@ -6,32 +15,20 @@ use std::{
     sync::RwLock,
 };
 
-use actix_web::{dev::ServiceRequest, web, FromRequest, HttpMessage, HttpRequest};
-
-use actix_web_httpauth::extractors::{
-    basic::{BasicAuth, Config},
-    AuthenticationError,
-};
-use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
-
-use crate::AppState;
-use crate::Result;
+pub type UserId = String;
 
 #[derive(Debug, Serialize)]
 pub struct User {
-    pub name: String,
-}
-
-#[derive(Deserialize)]
-pub struct AddUserReq {
-    pub name: String,
-    pub password: String,
+    name: String,
 }
 
 impl User {
     pub fn new(name: String) -> Self {
         Self { name }
+    }
+
+    pub fn id(&self) -> &UserId {
+        &self.name
     }
 }
 
@@ -45,6 +42,12 @@ impl FromRequest for User {
 
         future::ready(Ok(user))
     }
+}
+
+#[derive(Deserialize)]
+pub struct AddUserReq {
+    pub name: String,
+    pub password: String,
 }
 
 pub struct AuthService {

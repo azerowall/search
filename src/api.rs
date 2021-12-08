@@ -9,7 +9,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use actix_cors::Cors;
 use serde_json::json;
 
-use crate::access_control::Permission;
+use crate::access_control::{IndexPrivileges, SystemPrivileges};
 use crate::auth::{self, AddUserReq, User};
 use crate::dto::*;
 use crate::index_config::IndexConfig;
@@ -74,23 +74,32 @@ async fn status() -> HttpResponse {
 
 async fn add_user(
     state: web::Data<AppState>,
-    _user: User,
+    user: User,
     web::Json(new_user): web::Json<AddUserReq>,
 ) -> crate::Result<HttpResponse> {
+    state
+        .access_control
+        .check_system(&user, SystemPrivileges::MANAGE_SECURITY)?;
     state.auth.add_user(new_user)?;
     Ok(HttpResponse::Ok().into())
 }
 
 async fn remove_user(
     state: web::Data<AppState>,
-    _user: User,
+    user: User,
     web::Path(user_name): web::Path<String>,
 ) -> crate::Result<HttpResponse> {
+    state
+        .access_control
+        .check_system(&user, SystemPrivileges::MANAGE_SECURITY)?;
     state.auth.remove_user(&user_name)?;
     Ok(HttpResponse::Ok().into())
 }
 
-async fn list_users(state: web::Data<AppState>, _user: User) -> crate::Result<HttpResponse> {
+async fn list_users(state: web::Data<AppState>, user: User) -> crate::Result<HttpResponse> {
+    state
+        .access_control
+        .check_system(&user, SystemPrivileges::MANAGE_SECURITY)?;
     let users = state.auth.list_users()?;
     Ok(HttpResponse::Ok().json(users))
 }
@@ -103,8 +112,7 @@ async fn create_index(
 ) -> crate::Result<HttpResponse> {
     state
         .access_control
-        .check_index_access(&user, &index_name, &Permission::WRITE)?;
-
+        .check_system(&user, SystemPrivileges::MANAGE_INDICES)?;
     state.indices.create_index(index_name, &index_conf).await?;
     Ok(HttpResponse::Ok().into())
 }
@@ -116,8 +124,7 @@ async fn delete_index(
 ) -> crate::Result<HttpResponse> {
     state
         .access_control
-        .check_index_access(&user, &index_name, &Permission::WRITE)?;
-
+        .check_system(&user, SystemPrivileges::MANAGE_INDICES)?;
     state.indices.delete_index(&index_name).await?;
     Ok(HttpResponse::Ok().into())
 }
@@ -137,16 +144,16 @@ async fn add_document(
 ) -> crate::Result<HttpResponse> {
     state
         .access_control
-        .check_index_access(&user, &index_name, &Permission::WRITE)?;
+        .check_index(&user, &index_name, IndexPrivileges::WRITE)?;
 
     let index = state.indices.index(&index_name).await?;
-
     let doc = String::from_utf8(body.to_vec())?;
     let req = AddDocReq {
         doc,
         commit: query.commit,
     };
     index.add_document(req).await?;
+
     Ok(HttpResponse::Ok().into())
 }
 
@@ -158,10 +165,9 @@ async fn delete_by_term(
 ) -> crate::Result<HttpResponse> {
     state
         .access_control
-        .check_index_access(&user, &index_name, &Permission::WRITE)?;
+        .check_index(&user, &index_name, IndexPrivileges::WRITE)?;
 
     let index = state.indices.index(&index_name).await?;
-
     index.delete_by_term(req.into_inner()).await?;
 
     Ok(HttpResponse::Ok().finish())
@@ -175,10 +181,9 @@ async fn search_documents(
 ) -> crate::Result<HttpResponse> {
     state
         .access_control
-        .check_index_access(&user, &index_name, &Permission::WRITE)?;
+        .check_index(&user, &index_name, IndexPrivileges::READ)?;
 
     let index = state.indices.index(&index_name).await?;
-
     let docs = index.search(query.into_inner()).await?;
 
     Ok(HttpResponse::Ok().json(docs))
