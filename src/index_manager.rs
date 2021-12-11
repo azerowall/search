@@ -7,6 +7,8 @@ use crate::config;
 use crate::index::LocalIndex;
 use crate::index_config::IndexConfig;
 
+// TODO: file with indicies list
+
 pub struct IndexManager {
     conf: config::Search,
     indices: RwLock<HashMap<String, Arc<LocalIndex>>>,

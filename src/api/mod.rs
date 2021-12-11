@@ -13,7 +13,7 @@ use crate::security::authc::authentication_handler;
 use crate::AppState;
 use document::{add_document, delete_by_term, search_documents};
 use index::{create_index, delete_index};
-use security::{add_user, list_users, remove_user};
+use security::{add_user, assign_permissions, list_users, list_users_permissions, remove_user};
 
 pub async fn run_server(state: AppState) -> crate::Result<()> {
     let state = web::Data::new(state);
@@ -48,8 +48,13 @@ fn config_routes(conf: &mut web::ServiceConfig) {
                 .service(web::resource("/{user}").route(web::delete().to(remove_user))),
         )
         .service(
+            web::scope("/_permissions")
+                .service(web::resource("/").route(web::get().to(list_users_permissions)))
+                .service(web::resource("/{user}").route(web::put().to(assign_permissions))),
+        )
+        .service(
             web::resource("/{index}")
-                .route(web::put().to(create_index))
+                .route(web::post().to(create_index))
                 .route(web::delete().to(delete_index)),
         )
         .service(

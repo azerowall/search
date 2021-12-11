@@ -7,10 +7,11 @@ mod index_config;
 mod index_manager;
 mod query;
 mod security;
+mod utils;
 
 use crate::config::AppConfig;
 use crate::index_manager::IndexManager;
-use crate::security::{authc::AuthService, authz::AccessControlService};
+use crate::security::{authc::AuthService, authz::PermissionsStorage};
 
 pub use crate::error::Error;
 pub type Result<T, E = crate::error::Error> = std::result::Result<T, E>;
@@ -31,18 +32,19 @@ pub struct AppState {
     pub config: AppConfig,
     pub indices: IndexManager,
     pub auth: AuthService,
-    pub access_control: AccessControlService,
+    pub access_control: PermissionsStorage,
 }
 
 impl AppState {
     pub fn from_config(config: AppConfig) -> crate::Result<Self> {
         let search_conf = config.search.clone();
-        let users_file = config.search.data_dir.join("users.json");
+        let authc = AuthService::new(config.search.data_dir.join("users.json"))?;
+        let authz = PermissionsStorage::new(config.search.data_dir.join("permissions.json"))?;
         Ok(Self {
             config,
             indices: IndexManager::new(search_conf)?,
-            auth: AuthService::new(users_file)?,
-            access_control: AccessControlService::new_test(),
+            auth: authc,
+            access_control: authz,
         })
     }
 }

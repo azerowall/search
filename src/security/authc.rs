@@ -66,6 +66,7 @@ impl AuthService {
     }
 
     fn validate_credentials(&self, creds: &BasicAuth) -> bool {
+        log::debug!("Try to authenticate user with creds {:?}", creds);
         let users = self.users.read().unwrap();
         let valid_password = users.get(creds.user_id().as_ref());
 

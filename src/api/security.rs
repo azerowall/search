@@ -2,7 +2,7 @@ use actix_web::{web, HttpResponse};
 
 use crate::security::{
     authc::{AddUserReq, User},
-    authz::SystemPrivileges,
+    authz::{Permissions, SystemPrivileges},
 };
 use crate::AppState;
 
@@ -27,6 +27,7 @@ pub async fn remove_user(
         .access_control
         .check_system(&user, SystemPrivileges::MANAGE_SECURITY)?;
     state.auth.remove_user(&user_name)?;
+    state.access_control.remove_user(&user_name);
     Ok(HttpResponse::Ok().into())
 }
 
@@ -38,9 +39,28 @@ pub async fn list_users(state: web::Data<AppState>, user: User) -> crate::Result
     Ok(HttpResponse::Ok().json(users))
 }
 
-pub async fn set_permissions(
+pub async fn assign_permissions(
+    state: web::Data<AppState>,
+    user: User,
+    target_user: web::Path<String>,
+    perms: web::Json<Permissions>,
+) -> crate::Result<HttpResponse> {
+    state
+        .access_control
+        .check_system(&user, SystemPrivileges::MANAGE_SECURITY)?;
+    state
+        .access_control
+        .assign_permissions(target_user.into_inner(), perms.into_inner())?;
+    Ok(HttpResponse::Ok().into())
+}
+
+pub async fn list_users_permissions(
     state: web::Data<AppState>,
     user: User,
 ) -> crate::Result<HttpResponse> {
-    todo!()
+    state
+        .access_control
+        .check_system(&user, SystemPrivileges::MANAGE_SECURITY)?;
+    let list = state.access_control.list_users_permissions();
+    Ok(HttpResponse::Ok().json(list))
 }
