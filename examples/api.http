@@ -1,0 +1,157 @@
+# Use with REST Client extension for VS Code
+
+@host = http://localhost:8081
+
+### Index ####################################
+
+### Create index with no authentication
+
+PUT {{host}}/posts
+Content-Type: application/json
+
+{
+    "schema": []
+}
+
+### Create index
+
+POST {{host}}/posts
+Authorization: Basic test:test
+Content-Type: application/json
+
+{
+	"schema": [
+		{
+			"name": "id",
+			"type": "u64",
+			"options": {
+				"indexed": true,
+				"stored": true
+			}
+		},
+		{
+			"name": "text",
+			"type": "text",
+			"options": {
+				"indexing": {
+					"record": "position",
+                    "tokenizer": "default"
+				},
+				"stored": true
+			}
+		}
+	]
+}
+
+### Remove index
+
+DELETE {{host}}/posts
+Authorization: Basic test:test
+
+
+### Documents ####################################
+
+### Add document 0
+
+POST {{host}}/posts/
+Authorization: Basic test:test
+Content-Type: application/json
+
+{
+    "id": 0,
+    "text": "Привет мир"
+}
+
+### 1
+
+POST {{host}}/posts/
+Authorization: Basic test:test
+Content-Type: application/json
+
+{
+    "id": 1,
+    "text": "Мир привет"
+}
+
+### 2
+
+POST {{host}}/posts/?commit=true
+Authorization: Basic test:test
+Content-Type: application/json
+
+{
+    "id": 2,
+    "text": "Пока мир"
+}
+
+
+### Search ####################################
+
+### Search by term with boolean operators
+
+GET {{host}}/posts/_search
+    ?query=text:привет AND text:мир
+    &limit=10
+    &offset=0
+Authorization: Basic test:test
+
+### Phrase search
+
+GET {{host}}/posts/_search
+    ?query=text:"привет мир"
+    &limit=10
+    &offset=0
+Authorization: Basic test:test
+
+### Range search
+
+GET {{host}}/posts/_search
+    ?query=id:[0 TO 100}
+    &limit=10
+    &offset=0
+Authorization: Basic test:test
+
+
+### Security ####################################
+
+### Users list
+
+GET {{host}}/_users/
+Authorization: Basic test:test
+
+### Add user
+
+POST {{host}}/_users/
+Authorization: Basic test:test
+Content-Type: application/json
+
+{
+	"name": "alex",
+	"password": "qwerty"
+}
+
+### Remove user
+
+DELETE {{host}}/_users/alex
+Authorization: Basic test:test
+
+### Permissions list
+
+GET {{host}}/_permissions/
+Authorization: Basic test:test
+
+
+### Assign permissions
+
+PUT {{host}}/_permissions/test
+Authorization: Basic test:test
+Content-Type: application/json
+
+{
+	"system": ["manage_security", "manage_indices"],
+	"index": {
+		"posts": ["read", "write"]
+	}
+}
+
+
