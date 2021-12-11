@@ -1,3 +1,4 @@
+use crate::utils::json_file_storage::JsonFileStorage;
 use crate::AppState;
 use crate::Result;
 use actix_web::{dev::ServiceRequest, web, FromRequest, HttpMessage, HttpRequest};
@@ -9,7 +10,6 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    fs::{self, File},
     future,
     path::PathBuf,
     sync::RwLock,
@@ -51,18 +51,18 @@ pub struct AddUserReq {
 }
 
 pub struct AuthService {
+    storage: JsonFileStorage<HashMap<String, String>>,
     users: RwLock<HashMap<String, String>>,
-    users_file: PathBuf,
 }
 
 impl AuthService {
     pub fn new(users_file: PathBuf) -> Result<Self> {
-        let s = Self {
-            users: RwLock::new(HashMap::new()),
-            users_file,
-        };
-        s.load_from_file()?;
-        Ok(s)
+        let storage = JsonFileStorage::new(users_file);
+        let users = storage.load()?;
+        Ok(Self {
+            storage,
+            users: RwLock::new(users),
+        })
     }
 
     fn validate_credentials(&self, creds: &BasicAuth) -> bool {
@@ -83,7 +83,7 @@ impl AuthService {
             Entry::Occupied(_) => Err(anyhow!("User already exists").into()),
             Entry::Vacant(v) => {
                 v.insert(password);
-                self.save_to_file(&*users)
+                self.storage.store(&users)
             }
         }
     }
@@ -92,7 +92,7 @@ impl AuthService {
         log::info!("Remove user '{}'", name);
         let mut users = self.users.write().map_err(crate::error::lock_poisoned)?;
         users.remove(name);
-        self.save_to_file(&*users)
+        self.storage.store(&users)
     }
 
     pub fn list_users(&self) -> Result<Vec<User>> {
@@ -105,21 +105,6 @@ impl AuthService {
             .map(User::new)
             .collect();
         Ok(list)
-    }
-
-    fn load_from_file(&self) -> crate::Result<()> {
-        if self.users_file.exists() {
-            let s = fs::read_to_string(&self.users_file)?;
-            let mut users = self.users.write().map_err(crate::error::lock_poisoned)?;
-            *users = serde_json::from_str(&s)?;
-        }
-        Ok(())
-    }
-
-    fn save_to_file(&self, users: &HashMap<String, String>) -> Result<()> {
-        let file = File::create(&self.users_file)?;
-        serde_json::to_writer(file, &*users)?;
-        Ok(())
     }
 }
 

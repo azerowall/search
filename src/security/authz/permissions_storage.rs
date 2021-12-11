@@ -1,12 +1,12 @@
 use super::{IndexPrivileges, Permissions, SystemPrivileges};
 use crate::security::authc::{User, UserId};
+use crate::utils::json_file_storage::JsonFileStorage;
 use crate::Result;
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::RwLock;
 
 #[derive(Default, Clone, Serialize, Deserialize)]
@@ -29,21 +29,6 @@ struct DACModel {
     user_permissions: HashMap<UserId, UserPermissions>,
 }
 
-impl DACModel {
-    fn load(path: &Path) -> Result<Self> {
-        match File::open(path) {
-            Ok(file) => serde_json::from_reader(file).map_err(From::from),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Default::default()),
-            Err(err) => Err(err.into()),
-        }
-    }
-    fn store(&self, path: &Path) -> Result<()> {
-        let file = File::create(path)?;
-        serde_json::to_writer(file, self)?;
-        Ok(())
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct UserPermissionsInfo {
     user: UserId,
@@ -51,15 +36,16 @@ pub struct UserPermissionsInfo {
 }
 
 pub struct PermissionsStorage {
-    path: PathBuf,
+    storage: JsonFileStorage<DACModel>,
     model: RwLock<DACModel>,
 }
 
 impl PermissionsStorage {
     pub fn new(path: PathBuf) -> Result<Self> {
-        let model = DACModel::load(&path)?;
+        let storage = JsonFileStorage::new(path);
+        let model = storage.load()?;
         Ok(Self {
-            path,
+            storage,
             model: RwLock::new(model),
         })
     }
@@ -109,7 +95,7 @@ impl PermissionsStorage {
                 *occupied.get_mut() = permissions.into();
             }
         }
-        model.store(&self.path)
+        self.storage.store(&model)
     }
 
     pub fn list_users_permissions(&self) -> Vec<UserPermissionsInfo> {
